@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Notes</h1>
+            </div>
+            <nav class="navigation">
+                <ul id="directory-list" class="directory-list">
+                    <!-- Directory structure will be populated here -->
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="document-content">
+                <div id="document-title" class="document-title"></div>
+                <div id="document-body" class="document-body"></div>
+            </div>
+        </main>
+
+        <!-- Outline Panel -->
+        <aside class="outline-panel">
+            <div class="outline-header">
+                <h2>Contents</h2>
+            </div>
+            <div id="outline-content" class="outline-content">
+                <!-- Outline will be populated here -->
+            </div>
+        </aside>
+    </div>
+
+    <script src="/marked.min.js"></script>
+    <script src="/script.js"></script>
+</body>
+</html>
