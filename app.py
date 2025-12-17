@@ -71,6 +71,9 @@ def get_document(dir_name, file_name):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-if __name__ == '__main__':
     # Run the application
-    app.run(debug=True, host='0.0.0.0', port=5001)
+# if __name__ == '__main__':
+#     app.run(debug=True, host='0.0.0.0', port=5001)
+
+# For Gunicorn deployment, we expose the app object directly
+# Run with: gunicorn -w 4 -b 0.0.0.0:5001 app:app

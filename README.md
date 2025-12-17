@@ -55,15 +55,20 @@
 
 2. 安装依赖：
    ```bash
-   pip install flask
+   pip install flask gunicorn
    ```
 
-3. 启动服务：
+3. 启动服务（开发模式）：
    ```bash
    python app.py
    ```
 
-4. 访问应用：
+4. 或者使用Gunicorn启动（生产模式）：
+   ```bash
+   gunicorn -w 4 -b 0.0.0.0:5001 app:app
+   ```
+
+5. 访问应用：
    打开浏览器访问 `http://localhost:5001`
 
 ### 使用方法
@@ -75,6 +80,36 @@
    http://localhost:5001/docs/linux/vim.md
    ```
 4. **刷新保持**：刷新页面后会保持当前查看的文档
+
+## 生产环境部署
+
+### 使用Gunicorn
+
+本应用支持使用Gunicorn进行生产环境部署。项目已包含Gunicorn配置文件`gunicorn.conf.py`，可以使用以下命令启动：
+
+```bash
+gunicorn -c gunicorn.conf.py app:app
+```
+
+### 使用Nginx作为反向代理
+
+为了获得更好的性能和安全性，建议使用Nginx作为反向代理。项目包含了示例Nginx配置文件`nginx.conf`。
+
+1. 将`nginx.conf`复制到Nginx配置目录中（通常为`/etc/nginx/sites-available/`）
+2. 修改配置文件中的`server_name`为你自己的域名
+3. 创建软链接启用站点：
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/nginx.conf /etc/nginx/sites-enabled/
+   ```
+4. 测试Nginx配置并重新加载：
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+### SSL证书配置（推荐）
+
+对于生产环境，强烈建议启用HTTPS。可以在Nginx配置中取消注释SSL相关部分，并配置你的SSL证书路径。
 
 ## 文档组织
 
