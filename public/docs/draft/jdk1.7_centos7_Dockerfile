@@ -1,0 +1,15 @@
+FROM centos:7
+
+ADD jdk-7u80-linux-x64.tar.gz /usr/
+
+ENV JAVA_HOME /usr/jdk1.7.0_80
+ENV PATH $PATH:/usr/jdk1.7.0_80/bin
+
+RUN yum install -y glibc-common glibc glibc.i686 \
+&& yum clean packages
+
+COPY start.sh /root/start.sh
+
+RUN chmod +x /root/start.sh
+
+ENTRYPOINT cd /root; ./start.sh

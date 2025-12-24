@@ -1,0 +1,18 @@
+version: "3"
+services:
+  jobuiPosition4.5:
+    image: jdk1.7:centos7
+    container_name: jobuiPosition4.5
+    privileged: true
+    ports:
+      - 8700:8700
+    volumes:
+      - /web/java:/web/java
+      - /web/java/jobuiV4.5/jobuiPosition4.5/search.sh:/root/start.sh
+    deploy:
+      resources:
+        limits:
+          cpus: "4.00"
+          memory: 20G
+        reservations:
+          memory: 200M

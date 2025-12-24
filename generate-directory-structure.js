@@ -12,7 +12,7 @@ const path = require('path');
 // 配置
 const CONFIG = {
     DOCS_DIR: path.join(__dirname, 'docs'),
-    OUTPUT_FILE: path.join(__dirname, 'docs', 'directory-structure.json'),
+    OUTPUT_FILE: path.join(__dirname, 'public', 'docs', 'directory-structure.json'),
     IGNORE_DIRS: ['.git', 'node_modules', '__pycache__', 'images'],
     IGNORE_FILES: ['.DS_Store', 'directory-structure.json']
 };

@@ -1,0 +1,72 @@
+{
+  "metadata": {
+    "generatedAt": "2025-12-24T09:22:41.726Z",
+    "note": "自动生成，下次构建或文件变更时会重新生成"
+  },
+  "directories": [
+    {
+      "name": "draft",
+      "files": [
+        "37docker启动的服务.md",
+        "空介绍公司域名排行.md",
+        "草稿.md",
+        "薪酬搜素重构.md"
+      ]
+    },
+    {
+      "name": "linux",
+      "files": [
+        "Debian10  Lnmp环境搭建.md",
+        "debian10.md",
+        "fedora.md",
+        "linux基础命令.md",
+        "network.md",
+        "sehll脚本.md",
+        "shell.md",
+        "vim.md",
+        "生成自签名证书.md",
+        "防火墙.md"
+      ]
+    },
+    {
+      "name": "php",
+      "files": [
+        "laravel.md",
+        "php.md",
+        "tp6.md"
+      ]
+    },
+    {
+      "name": "python",
+      "files": [
+        "Python.md"
+      ]
+    },
+    {
+      "name": "services",
+      "files": [
+        "Docker.md",
+        "ElasticSearch.md",
+        "jenkins.md",
+        "jobui_docker环境.md",
+        "mongo.md",
+        "rabbitmq.md",
+        "redis.md",
+        "supervisor.md",
+        "web_Dockerfile.md",
+        "zabbix.md",
+        "安装es+kibana.md",
+        "数据库.md"
+      ]
+    },
+    {
+      "name": "tool",
+      "files": [
+        "Git.md",
+        "github.md",
+        "mac.md",
+        "wsl.md"
+      ]
+    }
+  ]
+}

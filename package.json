@@ -5,8 +5,9 @@
   "main": "index.html",
   "scripts": {
     "build": "node generate-directory-structure.js",
-    "dev": "npx serve .",
-    "preview": "npx serve .",
+    "postbuild": "echo 'Build completed successfully'",
+    "dev": "npx serve public",
+    "preview": "npx serve public",
     "generate-structure": "node generate-directory-structure.js",
     "watch-structure": "node generate-directory-structure.js watch"
   },
@@ -17,10 +18,10 @@
     "cloudflare",
     "static-site"
   ],
-  "author": "Your Name",
+  "author": "zax",
   "license": "MIT",
   "devDependencies": {
-    "serve": "^14.2.1"
+    "serve": "^14.2.5"
   },
   "engines": {
     "node": ">=16.0.0"
