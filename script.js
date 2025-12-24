@@ -1,296 +1,597 @@
-// script.js - Main application logic
+/**
+ * 笔记应用 - 主脚本文件
+ * 功能：动态加载目录结构、渲染 Markdown 文档、生成大纲、处理文件变更
+ */
 
-// Configuration
-const DOCS_PATH = 'docs';
-
-// Application state management
-let currentState = {
-  directories: [],       // Directory structure with files
-  currentDirectory: null, // Currently selected directory
-  currentDocument: null   // Currently loaded document
+// 应用状态管理
+const AppState = {
+    currentDirectory: null,
+    currentFile: null,
+    directoryStructure: null,
+    expandedDirectories: new Set(),
+    fileCache: new Map(),
+    lastUpdateTime: null
 };
 
-// DOM Elements cache
-const directoryListEl = document.getElementById('directory-list');
-const documentTitleEl = document.getElementById('document-title');
-const documentBodyEl = document.getElementById('document-body');
-const outlineContentEl = document.getElementById('outline-content');
+// 配置常量
+const CONFIG = {
+    DIRECTORY_STRUCTURE_URL: '/docs/directory-structure.json',
+    DOCS_BASE_PATH: '/docs/',
+    CACHE_DURATION: 5 * 60 * 1000, // 5分钟缓存
+    POLL_INTERVAL: 30 * 1000, // 30秒轮询检查更新
+    DEBOUNCE_DELAY: 300 // 防抖延迟
+};
 
 /**
- * Initialize the application when DOM is loaded
+ * 初始化应用
  */
-document.addEventListener('DOMContentLoaded', async () => {
-  // Load directory structure and set up event listeners
-  await loadDirectoryStructure();
-  setupEventListeners();
-
-  // Check if there's a document specified in the URL
-  const urlParams = parseUrlParams();
-  if (urlParams) {
-    // Try to load the requested document
+async function initApp() {
     try {
-      await loadDocument(urlParams.dirName, urlParams.fileName);
+        // 加载目录结构
+        await loadDirectoryStructure();
+        
+        // 渲染目录导航
+        renderDirectoryNavigation();
+        
+        // 设置事件监听器
+        setupEventListeners();
+        
+        // 加载默认文档（如果有）
+        await loadDefaultDocument();
+        
+        // 启动文件变更监听
+        startFileChangeListener();
+        
+        console.log('应用初始化完成');
     } catch (error) {
-      // If failed to load the requested document, load a default one
-      loadDefaultDocument();
+        console.error('应用初始化失败:', error);
+        showError('无法加载应用，请刷新页面重试');
     }
-  } else {
-    // Load the first document by default
-    loadDefaultDocument();
-  }
-});
+}
 
 /**
- * Load directory structure from the backend API
+ * 加载目录结构
  */
 async function loadDirectoryStructure() {
-  try {
-    const response = await fetch('/api/documents');
-    if (response.ok) {
-      const rawDirectories = await response.json();
-      // Transform backend data to match frontend state structure
-      currentState.directories = rawDirectories.map(dir => ({
-        name: dir.name,
-        expanded: false, // All directories are collapsed by default
-        files: dir.files || []
-      }));
-    } else {
-      throw new Error('Failed to load directory structure');
-    }
+    try {
+        const timestamp = new Date().getTime();
+        const url = `${CONFIG.DIRECTORY_STRUCTURE_URL}?t=${timestamp}`;
 
-    renderDirectoryStructure();
-  } catch (error) {
-    // Use empty directory structure on error
-    currentState.directories = [];
-    renderDirectoryStructure();
-  }
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        // 解析新的 JSON 结构
+        if (data.directories) {
+            AppState.directoryStructure = data.directories;
+            AppState.lastUpdateTime = new Date(data.metadata?.generatedAt || Date.now()).getTime();
+        } else {
+            // 兼容旧结构
+            AppState.directoryStructure = data;
+            AppState.lastUpdateTime = new Date().getTime();
+        }
+
+        // 初始化展开状态
+        if (AppState.directoryStructure.length > 0) {
+            AppState.expandedDirectories.add(AppState.directoryStructure[0].name);
+        }
+
+    } catch (error) {
+        console.error('加载目录结构失败:', error);
+        throw error;
+    }
 }
 
 /**
- * Render the directory structure in the sidebar
+ * 渲染目录导航
  */
-function renderDirectoryStructure() {
-  directoryListEl.innerHTML = '';
-
-  currentState.directories.forEach(dir => {
-    const dirItemEl = document.createElement('li');
-    dirItemEl.className = 'directory-item';
+function renderDirectoryNavigation() {
+    const directoryList = document.getElementById('directory-list');
+    if (!directoryList || !AppState.directoryStructure) return;
     
-    // Create directory item with header and file list
-    dirItemEl.innerHTML = `
-      <div class="directory-header ${dir.expanded ? 'active' : ''}" data-dir="${dir.name}">
-        <span class="directory-name">${dir.name}</span>
-        <span class="toggle-icon ${dir.expanded ? 'rotated' : ''}">▶</span>
-      </div>
-      <ul class="file-list ${dir.expanded ? 'expanded' : ''}" id="files-${dir.name}">
-        ${dir.files.map(file => `
-          <li class="file-item" data-dir="${dir.name}" data-file="${file}">${file.replace('.md', '').replace(/^\d+/, '')}</li>
-        `).join('')}
-      </ul>
-    `;
-
-    directoryListEl.appendChild(dirItemEl);
-  });
-}
-
-/**
- * Toggle directory expanded/collapsed state
- * @param {string} dirName - Name of the directory to toggle
- */
-async function loadDirectory(dirName) {
-  // Update state - toggle directory expanded state
-  let wasExpanded = false;
-  currentState.directories.forEach(dir => {
-    if (dir.name === dirName) {
-      wasExpanded = dir.expanded;
-      dir.expanded = !dir.expanded; // Toggle expand/collapse
-    }
-  });
-
-  currentState.currentDirectory = dirName;
-  renderDirectoryStructure();
-
-  // If directory was not previously expanded, we might need to wait for DOM update
-  if (!wasExpanded) {
-    // Force a reflow to ensure DOM is updated
-    return new Promise(resolve => {
-      requestAnimationFrame(() => {
-        resolve();
-      });
+    directoryList.innerHTML = '';
+    
+    AppState.directoryStructure.forEach(directory => {
+        const isExpanded = AppState.expandedDirectories.has(directory.name);
+        
+        // 创建目录项
+        const directoryItem = document.createElement('li');
+        directoryItem.className = 'directory-item';
+        
+        // 目录头部
+        const directoryHeader = document.createElement('div');
+        directoryHeader.className = 'directory-header';
+        directoryHeader.dataset.directory = directory.name;
+        
+        directoryHeader.innerHTML = `
+            <span class="directory-name">${escapeHtml(directory.name)}</span>
+            <span class="toggle-icon ${isExpanded ? 'rotated' : ''}">▶</span>
+        `;
+        
+        // 文件列表
+        const fileList = document.createElement('ul');
+        fileList.className = `file-list ${isExpanded ? 'expanded' : ''}`;
+        
+        directory.files.forEach(file => {
+            const fileItem = document.createElement('li');
+            fileItem.className = 'file-item';
+            fileItem.dataset.directory = directory.name;
+            fileItem.dataset.file = file;
+            fileItem.textContent = file.replace('.md', '');
+            
+            fileList.appendChild(fileItem);
+        });
+        
+        directoryItem.appendChild(directoryHeader);
+        directoryItem.appendChild(fileList);
+        directoryList.appendChild(directoryItem);
     });
-  }
 }
 
 /**
- * Load and display a document
- * @param {string} dirName - Directory name
- * @param {string} fileName - File name
- */
-async function loadDocument(dirName, fileName) {
-  try {
-    // Update state
-    currentState.currentDirectory = dirName;
-    currentState.currentDocument = fileName;
-
-    // Update UI to show active document
-    document.querySelectorAll('.file-item').forEach(el => {
-      el.classList.remove('active');
-    });
-
-    const activeFileEl = document.querySelector(`.file-item[data-dir="${dirName}"][data-file="${fileName}"]`);
-    if (activeFileEl) {
-      activeFileEl.classList.add('active');
-    }
-
-    // Load document content from backend API
-    const response = await fetch(`/api/document/${encodeURIComponent(dirName)}/${encodeURIComponent(fileName)}`);
-    if (response.ok) {
-      const data = await response.json();
-      const content = data.content;
-
-      // Render document title and content
-      documentTitleEl.textContent = fileName.replace('.md', '');
-      documentBodyEl.innerHTML = marked.parse(content);
-    } else {
-      throw new Error('Failed to load document, status: ' + response.status);
-    }
-
-    // Generate outline from document headings
-    generateOutline();
-
-    // Update URL to reflect current document
-    const newUrl = `/docs/${encodeURIComponent(dirName)}/${encodeURIComponent(fileName)}`;
-    history.pushState({ dirName, fileName }, '', newUrl);
-
-    // Scroll to top of document
-    document.querySelector('.main-content').scrollTop = 0;
-  } catch (error) {
-    documentBodyEl.innerHTML = '<p>Error loading document: ' + error.message + '</p>';
-    throw error;
-  }
-}
-
-/**
- * Generate outline from document headings
- */
-function generateOutline() {
-  // Clear previous outline
-  outlineContentEl.innerHTML = '';
-
-  // Get all headings from the document
-  const headings = documentBodyEl.querySelectorAll('h1, h2, h3, h4, h5, h6');
-
-  if (headings.length === 0) {
-    outlineContentEl.innerHTML = '<p>No headings found</p>';
-    return;
-  }
-
-  // Create outline list
-  const outlineListEl = document.createElement('ul');
-  outlineListEl.className = 'outline-list';
-
-  headings.forEach((heading, index) => {
-    // Assign ID to heading if it doesn't have one
-    if (!heading.id) {
-      heading.id = `heading-${index}`;
-    }
-
-    // Create outline item
-    const outlineItemEl = document.createElement('li');
-    outlineItemEl.className = 'outline-item';
-
-    const level = parseInt(heading.tagName.charAt(1));
-    const outlineLinkEl = document.createElement('a');
-    outlineLinkEl.href = `#${heading.id}`;
-    outlineLinkEl.className = `outline-link level-${level}`;
-    outlineLinkEl.textContent = heading.textContent;
-
-    outlineItemEl.appendChild(outlineLinkEl);
-    outlineListEl.appendChild(outlineItemEl);
-  });
-
-  outlineContentEl.appendChild(outlineListEl);
-}
-
-/**
- * Set up event listeners for user interactions
+ * 设置事件监听器
  */
 function setupEventListeners() {
-  // Directory toggle
-  directoryListEl.addEventListener('click', async (e) => {
-    const dirHeader = e.target.closest('.directory-header');
-    if (dirHeader) {
-      const dirName = dirHeader.getAttribute('data-dir');
-      await loadDirectory(dirName);
-      return;
-    }
-
-    // File selection
-    const fileItem = e.target.closest('.file-item');
-    if (fileItem) {
-      const dirName = fileItem.getAttribute('data-dir');
-      const fileName = fileItem.getAttribute('data-file');
-      await loadDocument(dirName, fileName);
-    }
-  });
-
-  // Outline link scrolling
-  outlineContentEl.addEventListener('click', (e) => {
-    if (e.target.classList.contains('outline-link')) {
-      e.preventDefault();
-      const targetId = e.target.getAttribute('href').substring(1);
-      const targetElement = document.getElementById(targetId);
-      if (targetElement) {
-        targetElement.scrollIntoView({ behavior: 'smooth' });
-      }
-    }
-  });
-
-  // Handle browser back/forward buttons
-  window.addEventListener('popstate', async (event) => {
-    if (event.state) {
-      await loadDocument(event.state.dirName, event.state.fileName);
-    } else {
-      // Load default document if no state
-      if (currentState.directories.length > 0) {
-        const firstDir = currentState.directories[0];
-        if (firstDir.files.length > 0) {
-          await loadDocument(firstDir.name, firstDir.files[0]);
+    // 目录切换事件
+    document.addEventListener('click', (e) => {
+        const directoryHeader = e.target.closest('.directory-header');
+        if (directoryHeader) {
+            e.preventDefault();
+            const directoryName = directoryHeader.dataset.directory;
+            toggleDirectory(directoryName);
+            return;
         }
-      }
-    }
-  });
-}
-
-/**
- * Helper function to load the default document
- */
-function loadDefaultDocument() {
-  if (currentState.directories.length > 0) {
-    const firstDir = currentState.directories[0];
-    loadDirectory(firstDir.name).then(() => {
-      if (firstDir.files.length > 0) {
-        loadDocument(firstDir.name, firstDir.files[0]);
-      }
+        
+        // 文件点击事件
+        const fileItem = e.target.closest('.file-item');
+        if (fileItem) {
+            e.preventDefault();
+            const directoryName = fileItem.dataset.directory;
+            const fileName = fileItem.dataset.file;
+            loadDocument(directoryName, fileName);
+            return;
+        }
+        
+        // 大纲链接点击事件
+        const outlineLink = e.target.closest('.outline-link');
+        if (outlineLink) {
+            e.preventDefault();
+            const targetId = outlineLink.getAttribute('href');
+            if (targetId) {
+                scrollToHeading(targetId);
+            }
+        }
     });
-  }
+    
+    // 窗口大小变化时重新计算布局
+    window.addEventListener('resize', debounce(handleResize, CONFIG.DEBOUNDE_DELAY));
+    
+    // 键盘导航支持
+    document.addEventListener('keydown', handleKeyboardNavigation);
 }
 
 /**
- * Parse URL parameters to load specific document
- * @returns {Object|null} Object with dirName and fileName, or null if not found
+ * 切换目录展开/折叠状态
  */
-function parseUrlParams() {
-  const pathParts = window.location.pathname.split('/').filter(part => part !== '');
+function toggleDirectory(directoryName) {
+    if (AppState.expandedDirectories.has(directoryName)) {
+        AppState.expandedDirectories.delete(directoryName);
+    } else {
+        AppState.expandedDirectories.add(directoryName);
+    }
+    
+    renderDirectoryNavigation();
+}
 
-  // Check if URL follows the pattern /docs/dirName/fileName
-  if (pathParts.length >= 3 && pathParts[0] === 'docs') {
-    const dirName = decodeURIComponent(pathParts[1]);
-    const fileName = decodeURIComponent(pathParts.slice(2).join('/'));
+/**
+ * 加载文档
+ */
+async function loadDocument(directoryName, fileName) {
+    try {
+        // 更新活动状态
+        updateActiveStates(directoryName, fileName);
+        
+        // 检查缓存
+        const cacheKey = `${directoryName}/${fileName}`;
+        let content = AppState.fileCache.get(cacheKey);
+        
+        if (!content) {
+            // 从服务器加载
+            const filePath = `${CONFIG.DOCS_BASE_PATH}${directoryName}/${fileName}`;
+            const timestamp = new Date().getTime();
+            const url = `${filePath}?t=${timestamp}`;
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            content = await response.text();
+            AppState.fileCache.set(cacheKey, content);
+        }
+        
+        // 渲染文档
+        renderDocument(fileName, content);
+        
+        // 更新应用状态
+        AppState.currentDirectory = directoryName;
+        AppState.currentFile = fileName;
+        
+    } catch (error) {
+        console.error('加载文档失败:', error);
+        showError(`无法加载文档: ${fileName}`);
+    }
+}
 
-    // Always return the parsed values even if we haven't loaded the directory structure yet
-    return { dirName, fileName };
-  }
+/**
+ * 更新活动状态
+ */
+function updateActiveStates(directoryName, fileName) {
+    // 移除所有活动状态
+    document.querySelectorAll('.directory-header.active').forEach(el => {
+        el.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.file-item.active').forEach(el => {
+        el.classList.remove('active');
+    });
+    
+    // 设置新的活动状态
+    const directoryHeader = document.querySelector(`.directory-header[data-directory="${directoryName}"]`);
+    if (directoryHeader) {
+        directoryHeader.classList.add('active');
+    }
+    
+    const fileItem = document.querySelector(`.file-item[data-directory="${directoryName}"][data-file="${fileName}"]`);
+    if (fileItem) {
+        fileItem.classList.add('active');
+    }
+}
 
-  return null;
+/**
+ * 渲染文档
+ */
+function renderDocument(fileName, content) {
+    // 更新标题
+    const titleElement = document.getElementById('document-title');
+    if (titleElement) {
+        const title = fileName.replace('.md', '').replace(/_/g, ' ');
+        titleElement.textContent = title;
+    }
+    
+    // 渲染 Markdown
+    const bodyElement = document.getElementById('document-body');
+    if (bodyElement && window.marked) {
+        const html = window.marked.parse(content);
+        bodyElement.innerHTML = html;
+        
+        // 生成大纲
+        generateOutline();
+        
+        // 添加代码高亮
+        highlightCodeBlocks();
+        
+        // 处理内部链接
+        processInternalLinks();
+    }
+}
+
+/**
+ * 生成大纲
+ */
+function generateOutline() {
+    const outlineContent = document.getElementById('outline-content');
+    if (!outlineContent) return;
+    
+    const headings = document.querySelectorAll('.document-body h1, .document-body h2, .document-body h3, .document-body h4, .document-body h5, .document-body h6');
+    
+    if (headings.length === 0) {
+        outlineContent.innerHTML = '<p class="no-outline">暂无大纲</p>';
+        return;
+    }
+    
+    const outlineList = document.createElement('ul');
+    outlineList.className = 'outline-list';
+    
+    headings.forEach((heading, index) => {
+        // 跳过第一个 h1（通常是标题）
+        if (index === 0 && heading.tagName === 'H1') return;
+        
+        const level = parseInt(heading.tagName.substring(1));
+        const text = heading.textContent;
+        const id = heading.id || `heading-${index}`;
+        
+        // 确保标题有 ID
+        if (!heading.id) {
+            heading.id = id;
+        }
+        
+        const outlineItem = document.createElement('li');
+        outlineItem.className = 'outline-item';
+        
+        const outlineLink = document.createElement('a');
+        outlineLink.href = `#${id}`;
+        outlineLink.className = `outline-link level-${level}`;
+        outlineLink.textContent = text;
+        
+        outlineItem.appendChild(outlineLink);
+        outlineList.appendChild(outlineItem);
+    });
+    
+    outlineContent.innerHTML = '';
+    outlineContent.appendChild(outlineList);
+}
+
+/**
+ * 滚动到标题
+ */
+function scrollToHeading(headingId) {
+    const heading = document.getElementById(headingId.substring(1));
+    if (heading) {
+        heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+/**
+ * 高亮代码块
+ */
+function highlightCodeBlocks() {
+    // 这里可以集成 Prism.js 或其他高亮库
+    // 暂时使用简单的样式增强
+    document.querySelectorAll('pre code').forEach(block => {
+        block.classList.add('hljs');
+    });
+}
+
+/**
+ * 处理内部链接
+ */
+function processInternalLinks() {
+    document.querySelectorAll('.document-body a[href$=".md"]').forEach(link => {
+        link.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const href = link.getAttribute('href');
+            
+            // 解析链接路径
+            const pathParts = href.split('/');
+            const fileName = pathParts.pop();
+            const directoryName = pathParts.pop() || AppState.currentDirectory;
+            
+            if (fileName && directoryName) {
+                await loadDocument(directoryName, fileName);
+            }
+        });
+    });
+}
+
+/**
+ * 加载默认文档
+ */
+async function loadDefaultDocument() {
+    if (!AppState.directoryStructure || AppState.directoryStructure.length === 0) {
+        return;
+    }
+    
+    const firstDirectory = AppState.directoryStructure[0];
+    if (firstDirectory.files && firstDirectory.files.length > 0) {
+        await loadDocument(firstDirectory.name, firstDirectory.files[0]);
+    }
+}
+
+/**
+ * 启动文件变更监听
+ */
+function startFileChangeListener() {
+    // 定期检查目录结构更新
+    setInterval(async () => {
+        try {
+            await checkForUpdates();
+        } catch (error) {
+            console.warn('检查更新失败:', error);
+        }
+    }, CONFIG.POLL_INTERVAL);
+}
+
+/**
+ * 检查更新
+ */
+async function checkForUpdates() {
+    try {
+        const timestamp = new Date().getTime();
+        const url = `${CONFIG.DIRECTORY_STRUCTURE_URL}?t=${timestamp}`;
+
+        const response = await fetch(url);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        let generatedAt;
+
+        // 解析新的 JSON 结构
+        if (data.metadata && data.metadata.generatedAt) {
+            generatedAt = new Date(data.metadata.generatedAt).getTime();
+        } else {
+            // 如果没有时间戳，使用当前时间
+            generatedAt = new Date().getTime();
+        }
+
+        if (!AppState.lastUpdateTime || generatedAt > AppState.lastUpdateTime) {
+            console.log('检测到目录结构更新，重新加载...');
+            await loadDirectoryStructure();
+            renderDirectoryNavigation();
+
+            // 如果当前文档所属目录已删除，加载默认文档
+            if (AppState.currentDirectory && AppState.currentFile) {
+                const dirExists = AppState.directoryStructure.some(dir => dir.name === AppState.currentDirectory);
+                if (!dirExists) {
+                    await loadDefaultDocument();
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('检查更新时出错:', error);
+    }
+}
+
+/**
+ * 处理窗口大小变化
+ */
+function handleResize() {
+    // 可以根据窗口大小调整布局
+    const outlinePanel = document.querySelector('.outline-panel');
+    if (outlinePanel) {
+        if (window.innerWidth < 992) {
+            outlinePanel.style.display = 'none';
+        } else {
+            outlinePanel.style.display = 'block';
+        }
+    }
+}
+
+/**
+ * 处理键盘导航
+ */
+function handleKeyboardNavigation(e) {
+    // 支持键盘快捷键
+    switch (e.key) {
+        case 'Escape':
+            // 清除搜索或关闭模态框
+            break;
+        case '/':
+            // 聚焦搜索框
+            e.preventDefault();
+            // 如果有搜索功能，可以在这里实现
+            break;
+        case 'j':
+        case 'k':
+            // 上下导航（vim风格）
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                navigateFiles(e.key === 'j' ? 'down' : 'up');
+            }
+            break;
+    }
+}
+
+/**
+ * 文件导航
+ */
+function navigateFiles(direction) {
+    if (!AppState.currentDirectory || !AppState.currentFile) return;
+    
+    const currentDir = AppState.directoryStructure.find(dir => dir.name === AppState.currentDirectory);
+    if (!currentDir) return;
+    
+    const currentIndex = currentDir.files.indexOf(AppState.currentFile);
+    if (currentIndex === -1) return;
+    
+    let newIndex;
+    if (direction === 'down') {
+        newIndex = Math.min(currentIndex + 1, currentDir.files.length - 1);
+    } else {
+        newIndex = Math.max(currentIndex - 1, 0);
+    }
+    
+    if (newIndex !== currentIndex) {
+        loadDocument(AppState.currentDirectory, currentDir.files[newIndex]);
+    }
+}
+
+/**
+ * 显示错误信息
+ */
+function showError(message) {
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #ff3b30;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    errorDiv.textContent = message;
+    
+    document.body.appendChild(errorDiv);
+    
+    setTimeout(() => {
+        errorDiv.remove();
+    }, 5000);
+}
+
+/**
+ * 防抖函数
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+/**
+ * HTML 转义
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * 等待 marked.js 加载
+ */
+function waitForMarked() {
+    return new Promise((resolve) => {
+        if (window.marked) {
+            resolve();
+            return;
+        }
+        
+        let attempts = 0;
+        const maxAttempts = 50; // 5秒超时
+        
+        const checkInterval = setInterval(() => {
+            attempts++;
+            if (window.marked) {
+                clearInterval(checkInterval);
+                resolve();
+            } else if (attempts >= maxAttempts) {
+                clearInterval(checkInterval);
+                console.warn('marked.js 加载超时');
+                resolve();
+            }
+        }, 100);
+    });
+}
+
+// 页面加载完成后初始化应用
+document.addEventListener('DOMContentLoaded', async () => {
+    // 等待 marked.js 加载
+    await waitForMarked();
+    
+    // 初始化应用
+    await initApp();
+});
+
+// 导出函数供测试使用
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        initApp,
+        loadDirectoryStructure,
+        loadDocument,
+        toggleDirectory,
+        generateOutline
+    };
 }

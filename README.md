@@ -1,195 +1,288 @@
-# Notes - Markdown 文档管理系统
+# 笔记应用 📝
 
-一个基于Web的Markdown文档管理系统，支持文档浏览、搜索和实时预览。
+现代化的笔记应用，采用 Apple 设计语言，支持 Markdown 渲染和目录导航。专为 Cloudflare Pages 部署优化。
 
-## 功能特性
+## ✨ 功能特性
 
-- **文档管理**：按目录组织Markdown文档，支持多层级分类
-- **实时预览**：自动渲染Markdown文档为HTML格式
-- **大纲导航**：自动生成文档大纲，方便快速跳转
-- **响应式设计**：适配桌面端和移动端设备
-- **URL路由**：支持直接通过URL访问特定文档
-- **刷新保持**：页面刷新后保持当前文档状态
+- 🎨 **现代化设计**：采用 Apple 设计语言，简洁美观
+- 📄 **Markdown 渲染**：支持完整的 Markdown 语法渲染
+- 📁 **目录导航**：自动扫描 docs 目录生成导航结构
+- 🔍 **大纲生成**：自动从文档生成导航大纲
+- 📱 **响应式设计**：完美适配桌面、平板和手机
+- 🔄 **实时更新**：监听文件变更，自动更新目录结构
+- ⚡ **高性能**：静态部署，快速加载
+- 🔒 **安全可靠**：符合现代 Web 安全标准
 
-## 项目结构
+## 🚀 快速开始
 
-```
-.
-├── app.py                 # Flask后端服务
-├── index.html             # 主页面模板
-├── styles.css             # 样式文件
-├── script.js              # 前端JavaScript逻辑
-├── marked.min.js          # Markdown解析库
-├── docs/                  # 文档存储目录
-│   ├── draft/             # 草稿文档
-│   ├── images/            # 图片资源
-│   ├── linux/             # Linux相关文档
-│   ├── php/               # PHP相关文档
-│   ├── python/            # Python相关文档
-│   ├── services/          # 服务相关文档
-│   └── tool/              # 工具相关文档
-└── README.md              # 项目说明文档
-```
+### 本地开发
 
-## 技术栈
-
-- **前端**：HTML5, CSS3, JavaScript (ES6+)
-- **后端**：Python Flask
-- **Markdown解析**：Marked.js
-- **样式设计**：Apple-inspired design language
-
-## 安装与运行
-
-### 环境要求
-
-- Python 3.6+
-- pip包管理器
-
-### 安装步骤
-
-1. 克隆项目到本地：
+1. **克隆项目**
    ```bash
    git clone <repository-url>
    cd note
    ```
 
-2. 安装依赖：
+2. **安装依赖**
    ```bash
-   pip install flask gunicorn
+   npm install
    ```
 
-3. 启动服务（开发模式）：
+3. **生成目录结构**
    ```bash
-   python app.py
+   npm run generate-structure
    ```
 
-4. 或者使用Gunicorn启动（生产模式）：
+4. **启动开发服务器**
    ```bash
-   gunicorn -w 4 -b 0.0.0.0:5001 app:app
+   npm run dev
    ```
 
-5. 访问应用：
-   打开浏览器访问 `http://localhost:5001`
+5. **打开浏览器**
+   访问 `http://localhost:3000`
 
-### 使用方法
+### 文件监听模式
 
-1. **浏览文档**：在左侧边栏点击目录和文档名称浏览
-2. **查看大纲**：右侧边栏显示当前文档的大纲结构
-3. **直接访问**：可通过URL直接访问特定文档，例如：
-   ```
-   http://localhost:5001/docs/linux/vim.md
-   ```
-4. **刷新保持**：刷新页面后会保持当前查看的文档
-
-## 生产环境部署
-
-### 使用Gunicorn
-
-本应用支持使用Gunicorn进行生产环境部署。项目已包含Gunicorn配置文件`gunicorn.conf.py`，可以使用以下命令启动：
+启动文件监听，当 docs 目录变更时自动重新生成目录结构：
 
 ```bash
-gunicorn -c gunicorn.conf.py app:app
+npm run watch-structure
 ```
 
-### 使用Nginx作为反向代理
+## 📁 项目结构
 
-为了获得更好的性能和安全性，建议使用Nginx作为反向代理。项目包含了示例Nginx配置文件`nginx.conf`。
+```
+note/
+├── index.html          # 主页面
+├── styles.css          # 样式文件
+├── script.js           # 主脚本文件
+├── marked.min.js       # Markdown 渲染库
+├── docs/               # 文档目录
+│   ├── draft/          # 草稿文档
+│   ├── linux/          # Linux 相关文档
+│   ├── php/            # PHP 相关文档
+│   ├── python/         # Python 相关文档
+│   ├── services/       # 服务相关文档
+│   ├── tool/           # 工具相关文档
+│   └── directory-structure.json  # 自动生成的目录结构
+├── generate-directory-structure.js  # 目录生成脚本
+├── package.json        # 项目配置
+├── wrangler.toml       # Cloudflare Pages 配置
+├── _headers            # 自定义 HTTP 头部
+├── _redirects          # 重定向规则
+└── 404.html            # 404 错误页面
+```
 
-1. 将`nginx.conf`复制到Nginx配置目录中（通常为`/etc/nginx/sites-available/`）
-2. 修改配置文件中的`server_name`为你自己的域名
-3. 创建软链接启用站点：
+## ☁️ Cloudflare Pages 部署
+
+### 自动部署（推荐）
+
+1. **连接 GitHub 仓库**
+   - 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
+   - 进入 Pages → "Create a project"
+   - 选择 "Connect to Git"
+
+2. **配置构建设置**
+   - **构建命令**: `npm run build`
+   - **构建输出目录**: `.` (当前目录)
+   - **根目录**: `/` (默认)
+
+3. **环境变量**（可选）
+   - `NODE_VERSION`: `18` (推荐)
+
+4. **开始部署**
+   - 点击 "Save and Deploy"
+
+### 手动部署
+
+1. **安装 Wrangler CLI**
    ```bash
-   sudo ln -s /etc/nginx/sites-available/nginx.conf /etc/nginx/sites-enabled/
+   npm install -g wrangler
    ```
-4. 测试Nginx配置并重新加载：
+
+2. **登录 Cloudflare**
    ```bash
-   sudo nginx -t
-   sudo systemctl reload nginx
+   wrangler login
    ```
 
-### SSL证书配置（推荐）
+3. **构建项目**
+   ```bash
+   npm run build
+   ```
 
-对于生产环境，强烈建议启用HTTPS。可以在Nginx配置中取消注释SSL相关部分，并配置你的SSL证书路径。
+4. **部署到 Cloudflare Pages**
+   ```bash
+   wrangler pages deploy .
+   ```
 
-## 文档组织
+### 自定义域名
 
-文档按照以下结构组织在`docs`目录中：
+1. 在 Cloudflare Pages 项目设置中
+2. 选择 "Custom domains"
+3. 添加您的域名
+4. 按照提示配置 DNS 记录
 
-- 每个子目录代表一个文档分类
-- 子目录中的`.md`文件为Markdown文档
-- 支持中文文件名和目录名
+## 🔧 配置说明
 
-示例：
+### 目录结构生成
+
+应用会自动扫描 `docs/` 目录下的所有 `.md` 文件，生成 `directory-structure.json`。
+
+**忽略规则**：
+- 忽略目录：`.git`, `node_modules`, `__pycache__`, `images`
+- 忽略文件：`.DS_Store`, `directory-structure.json`
+
+### 自定义样式
+
+修改 `styles.css` 中的 CSS 变量来自定义主题：
+
+```css
+:root {
+  --background-color: #ffffff;
+  --sidebar-background: #f5f5f7;
+  --accent-color: #0071e3;
+  /* 更多变量... */
+}
 ```
-docs/
-├── linux/
-│   ├── vim.md
-│   └── shell.md
-└── python/
-    └── Python.md
+
+### 缓存策略
+
+- **静态资源**：CSS、JS 文件缓存 1 年
+- **文档文件**：Markdown 文件缓存 5 分钟
+- **目录结构**：JSON 文件缓存 5 分钟
+
+## 📱 响应式设计
+
+应用支持多种屏幕尺寸：
+
+- **桌面** (> 1200px)：三栏布局
+- **平板** (992px - 1200px)：两栏布局（隐藏大纲）
+- **手机** (< 768px)：单栏布局
+
+## 🔄 文件变更处理
+
+### 自动更新
+应用会定期检查目录结构更新（默认每 30 秒）。当检测到文件变更时：
+1. 重新扫描 docs 目录
+2. 更新 directory-structure.json
+3. 刷新前端导航菜单
+
+### 手动触发
+在开发时，可以运行：
+```bash
+npm run generate-structure
 ```
 
-## 开发说明
+## 🛠️ 开发指南
 
-### 前端架构
+### 添加新文档
 
-- 使用原生JavaScript，无框架依赖
-- 采用模块化设计，易于维护和扩展
-- 响应式布局，适配不同屏幕尺寸
+1. 在 `docs/` 目录下创建或选择目录
+2. 添加 `.md` 文件
+3. 运行 `npm run generate-structure`
+4. 刷新页面即可看到新文档
 
-### 后端API
+### 扩展功能
 
-提供以下RESTful API接口：
+#### 添加搜索功能
+1. 集成 [lunr.js](https://lunrjs.com/) 或 [FlexSearch](https://github.com/nextapps-de/flexsearch)
+2. 在构建时生成搜索索引
+3. 在前端添加搜索界面
 
-1. `GET /api/documents` - 获取所有文档目录结构
-2. `GET /api/document/<dir_name>/<file_name>` - 获取特定文档内容
+#### 添加代码高亮
+1. 集成 [Prism.js](https://prismjs.com/) 或 [highlight.js](https://highlightjs.org/)
+2. 在 `script.js` 中初始化高亮
+3. 添加对应的 CSS 主题
 
-### 路由处理
+#### 添加暗色模式
+1. 在 `styles.css` 中添加暗色主题变量
+2. 使用 `prefers-color-scheme` 媒体查询
+3. 添加主题切换按钮
 
-- `/` - 返回主页面
-- `/docs/<path:path>` - 处理文档路径，重定向到主页面由前端处理
-- `/<path:path>` - 静态文件服务
+## 📄 文档规范
 
-## 自定义配置
+### Markdown 格式建议
 
-### 样式定制
+```markdown
+# 文档标题
 
-可以通过修改`styles.css`文件来自定义界面样式：
-- 颜色主题在`:root`部分定义
-- 响应式断点可根据需要调整
-- 组件样式可按需修改
+## 二级标题
+- 使用清晰的标题结构
+- 标题会自动生成大纲
 
-### 文档目录
+### 三级标题
+代码块使用三个反引号：
 
-默认文档目录为`docs`，可通过修改`app.py`中的`DOCS_PATH`变量来更改。
+```python
+def hello():
+    print("Hello, World!")
+```
 
-## 故障排除
+- 列表项
+- 另一个列表项
+
+> 引用内容
+
+**粗体** *斜体* `行内代码`
+
+[链接文本](链接地址)
+```
+
+### 文件名规范
+- 使用英文或拼音命名
+- 使用连字符或下划线分隔单词
+- 保持文件名简洁明了
+
+## 🐛 故障排除
 
 ### 常见问题
 
-1. **页面无内容显示**
-   - 检查JavaScript控制台是否有错误
-   - 确认后端服务是否正常运行
-   - 验证文档目录结构是否正确
+1. **目录不显示**
+   - 检查 `docs/directory-structure.json` 是否存在
+   - 运行 `npm run generate-structure`
+   - 检查浏览器控制台错误
 
-2. **样式未加载**
-   - 检查CSS文件路径是否正确
-   - 确认服务器能否正确提供静态文件
+2. **Markdown 渲染问题**
+   - 检查 `marked.min.js` 是否加载
+   - 验证 Markdown 语法是否正确
 
-3. **API访问错误**
-   - 检查后端服务日志
-   - 验证文档文件是否存在且格式正确
+3. **部署失败**
+   - 检查 `package.json` 中的构建命令
+   - 验证 Cloudflare Pages 配置
+   - 查看构建日志中的错误信息
 
-### 调试方法
+### 调试模式
 
-1. 打开浏览器开发者工具查看控制台输出
-2. 检查网络面板确认资源加载状态
-3. 查看后端服务日志定位问题
+在浏览器控制台查看调试信息：
 
-## 许可证
+```javascript
+// 查看应用状态
+console.log(AppState);
+
+// 手动重新加载目录
+await loadDirectoryStructure();
+renderDirectoryNavigation();
+```
+
+## 📄 许可证
 
 MIT License
 
-## 贡献
+## 🤝 贡献指南
 
-欢迎提交Issue和Pull Request来改进项目。
+1. Fork 项目
+2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+## 📞 支持
+
+如有问题或建议，请：
+1. 查看 [Issues](https://github.com/your-repo/issues)
+2. 提交新的 Issue
+3. 或通过邮件联系
+
+---
+
+**Happy Note-taking!** 📝✨

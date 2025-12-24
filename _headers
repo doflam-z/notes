@@ -1,0 +1,28 @@
+# Cloudflare Pages 自定义头部配置
+# 参考: https://developers.cloudflare.com/pages/platform/headers/
+
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Cache-Control: public, max-age=3600
+
+# 静态资源缓存
+*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+*.json
+  Cache-Control: public, max-age=300
+
+# Markdown 文件
+*.md
+  Cache-Control: public, max-age=300
+  Content-Type: text/markdown; charset=utf-8
+
+# API 响应（如果有）
+/api/*
+  Cache-Control: no-cache, no-store, must-revalidate
