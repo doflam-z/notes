@@ -19,7 +19,8 @@ const CONFIG = {
     DOCS_BASE_PATH: '/docs/',
     CACHE_DURATION: 5 * 60 * 1000, // 5分钟缓存
     POLL_INTERVAL: 30 * 1000, // 30秒轮询检查更新
-    DEBOUNCE_DELAY: 300 // 防抖延迟
+    DEBOUNCE_DELAY: 300, // 防抖延迟
+    ROUTE_PREFIX: '#/' // 哈希路由前缀
 };
 
 /**
@@ -29,19 +30,19 @@ async function initApp() {
     try {
         // 加载目录结构
         await loadDirectoryStructure();
-        
+
         // 渲染目录导航
         renderDirectoryNavigation();
-        
+
         // 设置事件监听器
         setupEventListeners();
-        
-        // 加载默认文档（如果有）
-        await loadDefaultDocument();
-        
+
+        // 初始化路由
+        initRouter();
+
         // 启动文件变更监听
         startFileChangeListener();
-        
+
         console.log('应用初始化完成');
     } catch (error) {
         console.error('应用初始化失败:', error);
@@ -151,7 +152,7 @@ function setupEventListeners() {
             e.preventDefault();
             const directoryName = fileItem.dataset.directory;
             const fileName = fileItem.dataset.file;
-            loadDocument(directoryName, fileName);
+            loadDocumentWithRouting(directoryName, fileName);
             return;
         }
         
@@ -255,27 +256,76 @@ function updateActiveStates(directoryName, fileName) {
  * 渲染文档
  */
 function renderDocument(fileName, content) {
+    // 更新路径
+    updateDocumentPath();
+
     // 更新标题
     const titleElement = document.getElementById('document-title');
     if (titleElement) {
         const title = fileName.replace('.md', '').replace(/_/g, ' ');
         titleElement.textContent = title;
     }
-    
+
     // 渲染 Markdown
     const bodyElement = document.getElementById('document-body');
     if (bodyElement && window.marked) {
         const html = window.marked.parse(content);
         bodyElement.innerHTML = html;
-        
+
         // 生成大纲
         generateOutline();
-        
+
         // 添加代码高亮
         highlightCodeBlocks();
-        
+
         // 处理内部链接
         processInternalLinks();
+    }
+}
+
+/**
+ * 更新文档路径显示
+ */
+function updateDocumentPath() {
+    const pathElement = document.getElementById('document-path');
+    if (!pathElement || !AppState.currentDirectory || !AppState.currentFile) return;
+
+    const directoryName = AppState.currentDirectory;
+    const fileName = AppState.currentFile.replace('.md', '');
+
+    // 创建面包屑导航
+    const pathHtml = `
+        <a href="#" class="path-link">首页</a>
+        <span class="path-separator">/</span>
+        <a href="${CONFIG.ROUTE_PREFIX}${encodeURIComponent(directoryName)}" class="path-link">${escapeHtml(directoryName)}</a>
+        <span class="path-separator">/</span>
+        <span class="path-current">${escapeHtml(fileName)}</span>
+    `;
+
+    pathElement.innerHTML = pathHtml;
+
+    // 为目录链接添加点击事件
+    const directoryLink = pathElement.querySelector(`a[href="${CONFIG.ROUTE_PREFIX}${encodeURIComponent(directoryName)}"]`);
+    if (directoryLink) {
+        directoryLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            // 加载该目录的第一个文件
+            const dir = AppState.directoryStructure.find(d => d.name === directoryName);
+            if (dir && dir.files.length > 0) {
+                loadDocumentWithRouting(directoryName, dir.files[0]);
+            }
+        });
+    }
+
+    // 为首页链接添加点击事件
+    const homeLink = pathElement.querySelector('a[href="#"]');
+    if (homeLink) {
+        homeLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            loadDefaultDocument();
+            // 清除哈希
+            window.location.hash = '';
+        });
     }
 }
 
@@ -354,16 +404,30 @@ function processInternalLinks() {
         link.addEventListener('click', async (e) => {
             e.preventDefault();
             const href = link.getAttribute('href');
-            
+
             // 解析链接路径
             const pathParts = href.split('/');
             const fileName = pathParts.pop();
             const directoryName = pathParts.pop() || AppState.currentDirectory;
-            
+
             if (fileName && directoryName) {
-                await loadDocument(directoryName, fileName);
+                await loadDocumentWithRouting(directoryName, fileName);
             }
         });
+
+        // 更新链接为路由格式
+        const href = link.getAttribute('href');
+        if (href && href.endsWith('.md')) {
+            const pathParts = href.split('/');
+            const fileName = pathParts.pop();
+            const directoryName = pathParts.pop() || AppState.currentDirectory;
+
+            if (fileName && directoryName) {
+                const fileNameWithoutExt = fileName.replace('.md', '');
+                const newHref = `${CONFIG.ROUTE_PREFIX}${encodeURIComponent(directoryName)}/${encodeURIComponent(fileNameWithoutExt)}`;
+                link.setAttribute('href', newHref);
+            }
+        }
     });
 }
 
@@ -495,7 +559,7 @@ function navigateFiles(direction) {
     }
     
     if (newIndex !== currentIndex) {
-        loadDocument(AppState.currentDirectory, currentDir.files[newIndex]);
+        loadDocumentWithRouting(AppState.currentDirectory, currentDir.files[newIndex]);
     }
 }
 
@@ -576,11 +640,151 @@ function waitForMarked() {
     });
 }
 
+/**
+ * 初始化路由
+ */
+function initRouter() {
+    // 监听 hashchange 事件（哈希路由变化）
+    window.addEventListener('hashchange', handleHashChange);
+
+    // 解析当前哈希
+    const { directory, file } = parseCurrentHash();
+
+    if (directory && file) {
+        // 从哈希加载文档
+        loadDocument(directory, file);
+    } else {
+        // 加载默认文档
+        loadDefaultDocument();
+    }
+}
+
+/**
+ * 处理哈希变化
+ */
+function handleHashChange() {
+    const { directory, file } = parseCurrentHash();
+
+    if (directory && file) {
+        loadDocument(directory, file);
+    } else {
+        loadDefaultDocument();
+    }
+}
+
+/**
+ * 解析当前哈希
+ * 返回 { directory, file } 或 null
+ */
+function parseCurrentHash() {
+    const hash = window.location.hash;
+
+    // 检查是否匹配 #/<directory>/<file> 格式
+    const routeRegex = new RegExp(`^${CONFIG.ROUTE_PREFIX}([^/]+)/([^/]+)$`);
+    const match = hash.match(routeRegex);
+
+    if (match) {
+        const directory = decodeURIComponent(match[1]);
+        const file = decodeURIComponent(match[2]);
+
+        // 确保文件以 .md 结尾
+        const fileName = file.endsWith('.md') ? file : `${file}.md`;
+
+        return { directory, file: fileName };
+    }
+
+    return { directory: null, file: null };
+}
+
+/**
+ * 更新 URL
+ */
+function updateUrl(directory, file) {
+    if (!directory || !file) return;
+
+    // 移除 .md 扩展名用于美观的 URL
+    const fileNameWithoutExt = file.replace('.md', '');
+    const hash = `${CONFIG.ROUTE_PREFIX}${encodeURIComponent(directory)}/${encodeURIComponent(fileNameWithoutExt)}`;
+
+    // 更新浏览器哈希
+    window.location.hash = hash;
+
+    // 更新页面标题
+    const title = `${fileNameWithoutExt} - Notes`;
+    document.title = title;
+}
+
+/**
+ * 加载文档（带路由支持）
+ */
+async function loadDocumentWithRouting(directoryName, fileName) {
+    try {
+        // 更新 URL
+        updateUrl(directoryName, fileName);
+
+        // 更新活动状态
+        updateActiveStates(directoryName, fileName);
+
+        // 检查缓存
+        const cacheKey = `${directoryName}/${fileName}`;
+        let content = AppState.fileCache.get(cacheKey);
+
+        if (!content) {
+            // 从服务器加载
+            const filePath = `${CONFIG.DOCS_BASE_PATH}${directoryName}/${fileName}`;
+            const timestamp = new Date().getTime();
+            const url = `${filePath}?t=${timestamp}`;
+
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            content = await response.text();
+            AppState.fileCache.set(cacheKey, content);
+        }
+
+        // 渲染文档
+        renderDocument(fileName, content);
+
+        // 更新应用状态
+        AppState.currentDirectory = directoryName;
+        AppState.currentFile = fileName;
+
+    } catch (error) {
+        console.error('加载文档失败:', error);
+        showError(`无法加载文档: ${fileName}`);
+
+        // 如果文档加载失败，回退到默认文档
+        await loadDefaultDocument();
+    }
+}
+
+/**
+ * 加载默认文档
+ */
+async function loadDefaultDocument() {
+    if (!AppState.directoryStructure || AppState.directoryStructure.length === 0) {
+        return;
+    }
+
+    const firstDirectory = AppState.directoryStructure[0];
+    if (firstDirectory.files && firstDirectory.files.length > 0) {
+        await loadDocumentWithRouting(firstDirectory.name, firstDirectory.files[0]);
+    } else {
+        // 如果没有文档，清空路径显示
+        const pathElement = document.getElementById('document-path');
+        if (pathElement) {
+            pathElement.innerHTML = '';
+        }
+    }
+}
+
 // 页面加载完成后初始化应用
 document.addEventListener('DOMContentLoaded', async () => {
     // 等待 marked.js 加载
     await waitForMarked();
-    
+
     // 初始化应用
     await initApp();
 });
@@ -590,8 +794,10 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         initApp,
         loadDirectoryStructure,
-        loadDocument,
+        loadDocument: loadDocumentWithRouting,
         toggleDirectory,
-        generateOutline
+        generateOutline,
+        parseCurrentUrl,
+        updateUrl
     };
 }

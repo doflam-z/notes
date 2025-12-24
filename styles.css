@@ -139,6 +139,37 @@ body {
   background-color: var(--background-color);
 }
 
+.document-path {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.path-separator {
+  margin: 0 4px;
+  color: var(--border-color);
+}
+
+.path-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-speed) ease;
+}
+
+.path-link:hover {
+  color: var(--accent-color);
+  text-decoration: underline;
+}
+
+.path-current {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 .document-title {
   font-size: 32px;
   font-weight: 700;
